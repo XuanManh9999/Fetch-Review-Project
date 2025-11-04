@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 import './AddReview.css'
 
-const AddReview = ({ products, onAddReview, loading }) => {
+const AddReview = ({ products, onAddReview, loading, onRequireLogin }) => {
+  const { isAuthenticated, user } = useAuth()
   const [formData, setFormData] = useState({
     product_id: '',
-    user_name: '',
     rating: 5,
     comment: ''
   })
@@ -21,8 +22,18 @@ const AddReview = ({ products, onAddReview, loading }) => {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!formData.product_id || !formData.user_name) {
-      alert('Please fill in all required fields!')
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      if (onRequireLogin) {
+        onRequireLogin()
+      } else {
+        alert('Please login to add a review!')
+      }
+      return
+    }
+
+    if (!formData.product_id) {
+      alert('Please select a product!')
       return
     }
 
@@ -33,7 +44,6 @@ const AddReview = ({ products, onAddReview, loading }) => {
       // Reset form
       setFormData({
         product_id: '',
-        user_name: '',
         rating: 5,
         comment: ''
       })
@@ -47,9 +57,35 @@ const AddReview = ({ products, onAddReview, loading }) => {
     return '⭐'.repeat(rating) + '☆'.repeat(5 - rating)
   }
 
+  // If not authenticated, show login prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="add-review-container">
+        <h2>✍️ Add New Review</h2>
+        <div className="login-required-message">
+          <div className="alert alert-info">
+            <p>🔐 You need to login to add a review</p>
+            {onRequireLogin && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={onRequireLogin}
+              >
+                🔐 Login Now
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="add-review-container">
       <h2>✍️ Add New Review</h2>
+      {user && (
+        <p className="review-as-user">Reviewing as: <strong>{user.full_name}</strong></p>
+      )}
 
       <form onSubmit={handleSubmit} className="add-review-form">
         <div className="form-group">
@@ -69,20 +105,6 @@ const AddReview = ({ products, onAddReview, loading }) => {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="user_name">Your Name *</label>
-          <input
-            type="text"
-            id="user_name"
-            name="user_name"
-            value={formData.user_name}
-            onChange={handleChange}
-            placeholder="Enter your name"
-            required
-            disabled={loading || isSubmitting}
-          />
         </div>
 
         <div className="form-group">

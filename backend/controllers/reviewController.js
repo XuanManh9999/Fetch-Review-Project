@@ -54,6 +54,77 @@ exports.getAllProducts = async (req, res) => {
   }
 };
 
+// Get product by ID with statistics
+exports.getProductById = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Get product details
+    const [products] = await db.query(
+      "SELECT * FROM products WHERE id = ?",
+      [productId]
+    );
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const product = products[0];
+
+    // Get statistics for this product
+    const [stats] = await db.query(
+      `SELECT 
+        COUNT(r.id) as total_reviews,
+        AVG(r.rating) as average_rating,
+        SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) as five_star,
+        SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) as four_star,
+        SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) as three_star,
+        SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) as two_star,
+        SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) as one_star
+       FROM reviews r
+       WHERE r.product_id = ?`,
+      [productId]
+    );
+
+    // Get reviews for this product
+    const [reviews] = await db.query(
+      `SELECT r.*, p.name as product_name, p.image_url as product_image
+       FROM reviews r
+       JOIN products p ON r.product_id = p.id
+       WHERE r.product_id = ?
+       ORDER BY r.created_at DESC`,
+      [productId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        product: convertToVietnamTime(product),
+        statistics: stats[0] || {
+          total_reviews: 0,
+          average_rating: 0,
+          five_star: 0,
+          four_star: 0,
+          three_star: 0,
+          two_star: 0,
+          one_star: 0,
+        },
+        reviews: convertToVietnamTime(reviews),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching product details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching product details",
+      error: error.message,
+    });
+  }
+};
+
 // Get reviews by product
 exports.getReviewsByProduct = async (req, res) => {
   try {
@@ -106,17 +177,18 @@ exports.getAllReviews = async (req, res) => {
   }
 };
 
-// Create new review
+// Create new review (requires authentication)
 exports.createReview = async (req, res) => {
   try {
-    const { product_id, user_name, rating, comment } = req.body;
+    const { product_id, rating, comment } = req.body;
+    const userId = req.user.userId; // From JWT token
+    const userEmail = req.user.email; // From JWT token
 
     // Validation
-    if (!product_id || !user_name || !rating) {
+    if (!product_id || !rating) {
       return res.status(400).json({
         success: false,
-        message:
-          "Please provide all required fields (product_id, user_name, rating)",
+        message: "Please provide all required fields (product_id, rating)",
       });
     }
 
@@ -127,9 +199,25 @@ exports.createReview = async (req, res) => {
       });
     }
 
+    // Get user's full name from database
+    const [users] = await db.query(
+      "SELECT full_name FROM users WHERE id = ?",
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const user_name = users[0].full_name;
+
+    // Insert review with user_id
     const [result] = await db.query(
-      "INSERT INTO reviews (product_id, user_name, rating, comment) VALUES (?, ?, ?, ?)",
-      [product_id, user_name, rating, comment]
+      "INSERT INTO reviews (product_id, user_id, user_name, rating, comment) VALUES (?, ?, ?, ?, ?)",
+      [product_id, userId, user_name, rating, comment]
     );
 
     // Get newly created review

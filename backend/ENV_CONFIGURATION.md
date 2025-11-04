@@ -30,6 +30,22 @@ FRONTEND_URL=http://localhost:5173
 # ===================================
 APP_NAME=Reviews API
 APP_VERSION=1.0.0
+
+# ===================================
+# JWT CONFIGURATION
+# ===================================
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRES_IN=7d
+
+# ===================================
+# EMAIL CONFIGURATION (Optional)
+# ===================================
+# For production, configure real email service
+# EMAIL_HOST=smtp.gmail.com
+# EMAIL_PORT=587
+# EMAIL_USER=your-email@gmail.com
+# EMAIL_PASSWORD=your-app-password
+# EMAIL_FROM=noreply@yourapp.com
 ```
 
 ---

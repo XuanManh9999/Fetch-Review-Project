@@ -3,6 +3,8 @@ const cors = require("cors");
 require("dotenv").config();
 
 const reviewRoutes = require("./routes/reviewRoutes");
+const authRoutes = require("./routes/authRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -27,6 +29,8 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api", reviewRoutes);
 
 // Health check endpoint
@@ -37,6 +41,7 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+// localhost:4000/health
 
 // Root endpoint
 app.get("/", (req, res) => {
@@ -44,11 +49,24 @@ app.get("/", (req, res) => {
     message: "🚀 Reviews API Server",
     version: "1.0.0",
     endpoints: {
+      // Auth endpoints
+      register: "POST /api/auth/register",
+      login: "POST /api/auth/login",
+      getCurrentUser: "GET /api/auth/me",
+      forgotPassword: "POST /api/auth/forgot-password",
+      resetPassword: "POST /api/auth/reset-password",
+      changePassword: "POST /api/auth/change-password",
+      // Review endpoints
       products: "/api/products",
+      productDetail: "GET /api/products/:productId",
       reviews: "/api/reviews",
       createReview: "POST /api/reviews",
       fetchReviews: "POST /api/fetch-reviews",
       statistics: "/api/statistics",
+      // Admin endpoints (require admin role)
+      adminUsers: "GET /api/admin/users",
+      adminProducts: "GET /api/admin/products",
+      adminStatistics: "GET /api/admin/statistics",
       health: "/health",
     },
   });

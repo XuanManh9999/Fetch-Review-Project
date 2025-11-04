@@ -10,6 +10,20 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
+// Add token to requests if available
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Interceptor để xử lý response
 apiClient.interceptors.response.use(
   (response) => {
@@ -17,6 +31,17 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     console.error("API Error:", error);
+    
+    // Handle 401 (unauthorized) - clear token
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      // Redirect to login if not already there
+      if (!window.location.pathname.includes("/login")) {
+        window.location.href = "/login";
+      }
+    }
+    
     const message =
       error.response?.data?.message ||
       error.message ||
@@ -29,6 +54,10 @@ const api = {
   // Products
   getAllProducts: async () => {
     return await apiClient.get("/products");
+  },
+
+  getProductById: async (productId) => {
+    return await apiClient.get(`/products/${productId}`);
   },
 
   // Reviews
