@@ -1,4 +1,5 @@
 const db = require("../config/database");
+const axios = require("axios");
 
 // Helper function: Convert UTC to Vietnam timezone (+7 hours)
 // Quick fix for demo - cộng 7 giờ cho tất cả timestamps
@@ -60,10 +61,9 @@ exports.getProductById = async (req, res) => {
     const { productId } = req.params;
 
     // Get product details
-    const [products] = await db.query(
-      "SELECT * FROM products WHERE id = ?",
-      [productId]
-    );
+    const [products] = await db.query("SELECT * FROM products WHERE id = ?", [
+      productId,
+    ]);
 
     if (products.length === 0) {
       return res.status(404).json({
@@ -200,10 +200,9 @@ exports.createReview = async (req, res) => {
     }
 
     // Get user's full name from database
-    const [users] = await db.query(
-      "SELECT full_name FROM users WHERE id = ?",
-      [userId]
-    );
+    const [users] = await db.query("SELECT full_name FROM users WHERE id = ?", [
+      userId,
+    ]);
 
     if (users.length === 0) {
       return res.status(404).json({
@@ -280,26 +279,124 @@ exports.getStatistics = async (req, res) => {
   }
 };
 
-// Fetch reviews from external sources (simulated)
+// ============================================
+// Helper: Fetch reviews from RapidAPI (Amazon)
+// ============================================
+const fetchAmazonReviews = async (productASIN) => {
+  const options = {
+    method: "GET",
+    url: `https://${process.env.RAPIDAPI_HOST}/product-reviews`,
+    params: {
+      asin: productASIN,
+      country: "US",
+      page: "1",
+    },
+    headers: {
+      "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+      "x-rapidapi-host": process.env.RAPIDAPI_HOST,
+    },
+  };
+
+  try {
+    console.log("📞 Calling RapidAPI with ASIN:", productASIN);
+    console.log("🔑 API Key exists:", !!process.env.RAPIDAPI_KEY);
+    console.log("🌐 Host:", process.env.RAPIDAPI_HOST);
+    
+    const response = await axios.request(options);
+    
+    console.log("✅ RapidAPI Response status:", response.status);
+    console.log("📦 Data structure:", Object.keys(response.data));
+    
+    return response.data;
+  } catch (error) {
+    console.error("❌ RapidAPI Error details:");
+    console.error("  - Status:", error.response?.status);
+    console.error("  - Message:", error.message);
+    console.error("  - Response data:", error.response?.data);
+    throw error;
+  }
+};
+
+// ============================================
+// Helper: Generate mock reviews (fallback)
+// ============================================
+const generateMockReviews = () => {
+  return [
+    {
+      product_id: Math.floor(Math.random() * 4) + 1,
+      user_name: `User_${Date.now()}`,
+      rating: Math.floor(Math.random() * 5) + 1,
+      comment: "New review fetched from external system!",
+    },
+    {
+      product_id: Math.floor(Math.random() * 4) + 1,
+      user_name: `AutoFetch_${Date.now()}`,
+      rating: Math.floor(Math.random() * 5) + 1,
+      comment: "Automatically collected review - great product!",
+    },
+  ];
+};
+
+// ============================================
+// Main: Fetch reviews from external sources
+// ============================================
 exports.fetchReviews = async (req, res) => {
   try {
     console.log("🔄 Starting to fetch reviews from external source...");
 
-    // Simulate fetching from external API
-    const externalReviews = [
-      {
-        product_id: Math.floor(Math.random() * 4) + 1, // Random product 1-4
-        user_name: `User_${Date.now()}`,
-        rating: Math.floor(Math.random() * 5) + 1, // Random 1-5
-        comment: "New review fetched from external system!",
-      },
-      {
-        product_id: Math.floor(Math.random() * 4) + 1,
-        user_name: `AutoFetch_${Date.now()}`,
-        rating: Math.floor(Math.random() * 5) + 1,
-        comment: "Automatically collected review - great product!",
-      },
-    ];
+    let externalReviews = [];
+    const useRealAPI = process.env.USE_REAL_API === "true";
+
+    if (useRealAPI && process.env.RAPIDAPI_KEY) {
+      console.log("📡 Fetching from RapidAPI (Amazon)...");
+
+      try {
+        // Get random product from database to map reviews to
+        const [products] = await db.query(
+          "SELECT id, name FROM products ORDER BY RAND() LIMIT 1"
+        );
+
+        if (products.length === 0) {
+          throw new Error("No products in database to map reviews to");
+        }
+
+        const targetProduct = products[0];
+
+        // Example Amazon ASIN - You can customize this
+        // Popular products: B08N5WRWNW (Echo Dot), B07XJ8C8F5 (Fire TV Stick)
+        const amazonASIN = "B08N5WRWNW"; // Echo Dot as example
+
+        const amazonData = await fetchAmazonReviews(amazonASIN);
+
+        // Parse Amazon reviews and map to our format
+        if (amazonData && amazonData.data && amazonData.data.reviews) {
+          const reviews = amazonData.data.reviews.slice(0, 3); // Get first 3 reviews
+
+          externalReviews = reviews.map((review) => ({
+            product_id: targetProduct.id,
+            user_name: review.reviewer?.name || "Amazon User",
+            rating: Math.min(5, Math.max(1, review.rating || 5)),
+            comment: review.review_comment || review.title || "Great product!",
+          }));
+
+          console.log(
+            `✅ Fetched ${externalReviews.length} reviews from Amazon`
+          );
+        } else {
+          console.log("⚠️ No reviews found from API, using mock data");
+          externalReviews = generateMockReviews();
+        }
+      } catch (apiError) {
+        console.error(
+          "⚠️ RapidAPI error, falling back to mock data:",
+          apiError.message
+        );
+        externalReviews = generateMockReviews();
+      }
+    } else {
+      console.log("🎭 Using mock data (USE_REAL_API=false or no API key)");
+      externalReviews = generateMockReviews();
+    }
 
     // Save to database
     const insertedReviews = [];
@@ -327,7 +424,8 @@ exports.fetchReviews = async (req, res) => {
     res.json({
       success: true,
       message: `Successfully fetched ${insertedReviews.length} new reviews!`,
-      data: convertToVietnamTime(insertedReviews), // Convert timezone +7
+      data: convertToVietnamTime(insertedReviews),
+      source: useRealAPI ? "RapidAPI (Amazon)" : "Mock Data",
     });
   } catch (error) {
     console.error("Error fetching reviews:", error);
