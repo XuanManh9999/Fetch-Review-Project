@@ -283,11 +283,15 @@ exports.forgotPassword = async (req, res) => {
     );
 
     // Create reset link
-    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${resetToken}`;
+    // Note: Frontend reads token from URL query parameter (?token=...)
+    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, ""); // Remove trailing slash
+    const resetLink = `${frontendUrl}/?token=${resetToken}`;
 
     // Send email
     const transporter = createTransporter();
-    await transporter.sendMail({
+    
+    // Email content
+    const emailContent = {
       from: process.env.EMAIL_FROM || "noreply@example.com",
       to: user.email,
       subject: "Password Reset Request",
@@ -300,13 +304,43 @@ exports.forgotPassword = async (req, res) => {
         <p>This link will expire in 1 hour.</p>
         <p>If you didn't request this, please ignore this email.</p>
       `,
-    });
+    };
 
-    res.json({
+    try {
+      await transporter.sendMail(emailContent);
+      console.log("✅ Password reset email sent successfully to:", user.email);
+    } catch (emailError) {
+      console.error("❌ Error sending email:", emailError.message);
+      // In development, log the reset link to console
+      if (process.env.NODE_ENV === "development" || !process.env.EMAIL_USER) {
+        console.log("\n" + "=".repeat(80));
+        console.log("📧 DEVELOPMENT MODE - Email not configured");
+        console.log("🔗 Password Reset Link (copy this to test):");
+        console.log(resetLink);
+        console.log("=".repeat(80) + "\n");
+      } else {
+        throw emailError; // Re-throw in production if email is configured
+      }
+    }
+
+    // Return success with development info
+    const response = {
       success: true,
       message:
         "If email exists, password reset link has been sent to your email",
-    });
+    };
+
+    // In development mode, include reset link in response (for testing)
+    if (process.env.NODE_ENV === "development" || !process.env.EMAIL_USER) {
+      response.devMode = true;
+      response.resetLink = resetLink; // Include for testing
+      console.log("\n" + "=".repeat(80));
+      console.log("📧 DEVELOPMENT MODE - Password Reset Link:");
+      console.log(resetLink);
+      console.log("=".repeat(80) + "\n");
+    }
+
+    res.json(response);
   } catch (error) {
     console.error("Error in forgot password:", error);
     res.status(500).json({
