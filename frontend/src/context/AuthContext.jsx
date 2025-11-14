@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
         // Try to get current user
         const userData = await authApi.getCurrentUser();
         const savedUser = localStorage.getItem("user");
-        
+
         if (userData) {
           setUser(userData);
           setIsAuthenticated(true);
@@ -125,4 +125,3 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

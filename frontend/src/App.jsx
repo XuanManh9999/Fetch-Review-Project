@@ -70,7 +70,7 @@ function App() {
     }
   };
 
-  // Fetch Reviews từ backend (giả lập thu thập từ nguồn bên ngoài)
+  // Fetch Reviews từ backend (thu thập từ nguồn thực tế hoặc giả lập)
   const handleFetchReviews = async () => {
     try {
       setLoading(true);
@@ -79,15 +79,41 @@ function App() {
 
       const result = await api.fetchReviews();
 
-      setFetchMessage(`✅ Successfully fetched new reviews!`);
+      // Display source information
+      const source = result.source || "External System";
+      let sourceIcon = "🎭"; // Default: Mock Data
+      if (source.includes("RapidAPI")) {
+        sourceIcon = "🌐";
+      } else if (source.includes("FakeStore")) {
+        sourceIcon = "🛒";
+      }
+      
+      // Check if it fell back to mock data due to API error
+      if (source.includes("Mock") && result.message?.includes("fallback")) {
+        setFetchMessage(
+          `⚠️ API temporarily unavailable, using mock data. ${sourceIcon} Source: ${source}`
+        );
+      } else {
+        setFetchMessage(`✅ Successfully fetched new reviews! ${sourceIcon} Source: ${source}`);
+      }
 
       // Reload lại dữ liệu
       await loadInitialData();
 
-      // Xóa message sau 3 giây
-      setTimeout(() => setFetchMessage(""), 3000);
+      // Xóa message sau 7 giây (lâu hơn nếu có warning)
+      const timeout = source.includes("Mock") ? 7000 : 5000;
+      setTimeout(() => setFetchMessage(""), timeout);
     } catch (err) {
-      setError("Error fetching reviews: " + err.message);
+      // Better error messages
+      let errorMessage = "Error fetching reviews: " + err.message;
+      
+      if (err.message.includes("503") || err.message.includes("Service Temporarily Unavailable")) {
+        errorMessage = "⚠️ RapidAPI server is temporarily overloaded. Please try again in a few minutes. (Using mock data as fallback)";
+      } else if (err.message.includes("timeout")) {
+        errorMessage = "⏱️ Request timed out. Please check your internet connection and try again.";
+      }
+      
+      setError(errorMessage);
       setFetchMessage("");
       console.error("Error fetching reviews:", err);
     } finally {
@@ -180,7 +206,7 @@ function App() {
     return (
       <div className="app">
         <header className="app-header">
-          <h1>🌟 Product Reviews Management System</h1>
+          <h1>🌟 TechHive</h1>
         </header>
         <Login
           onSwitchToRegister={() => setCurrentView("register")}
@@ -194,7 +220,7 @@ function App() {
     return (
       <div className="app">
         <header className="app-header">
-          <h1>🌟 Product Reviews Management System</h1>
+          <h1>🌟 TechHive</h1>
         </header>
         <Register onSwitchToLogin={() => setCurrentView("login")} />
       </div>
@@ -205,7 +231,7 @@ function App() {
     return (
       <div className="app">
         <header className="app-header">
-          <h1>🌟 Product Reviews Management System</h1>
+          <h1>🌟 TechHive</h1>
         </header>
         <ForgotPassword onSwitchToLogin={() => setCurrentView("login")} />
       </div>
@@ -217,7 +243,7 @@ function App() {
     return (
       <div className="app">
         <header className="app-header">
-          <h1>🌟 Product Reviews Management System</h1>
+          <h1>🌟 TechHive</h1>
         </header>
         <ResetPassword token={token} onSuccess={handleResetPasswordSuccess} />
       </div>
@@ -246,7 +272,7 @@ function App() {
         <header className="app-header">
           <div className="header-content">
             <div>
-              <h1>🌟 Product Reviews Management System</h1>
+              <h1>🌟 TechHive</h1>
               <p className="subtitle">
                 Manage and collect product reviews automatically
               </p>
@@ -310,7 +336,7 @@ function App() {
       <header className="app-header">
         <div className="header-content">
           <div>
-            <h1>🌟 Product Reviews Management System</h1>
+            <h1>🌟 TechHive</h1>
             <p className="subtitle">
               Manage and collect product reviews automatically
             </p>
@@ -356,11 +382,12 @@ function App() {
             className="btn btn-primary btn-large"
             onClick={handleFetchReviews}
             disabled={loading}
+            title="Fetch reviews from Amazon via RapidAPI or use mock data"
           >
             {loading ? "⏳ Processing..." : "🔄 Fetch Reviews"}
           </button>
           <p className="help-text">
-            Click to collect new reviews from external systems
+            Click to collect new reviews from external systems (Amazon, eBay, etc.)
           </p>
         </div>
 

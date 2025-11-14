@@ -27,6 +27,11 @@ authApiClient.interceptors.request.use(
 // Handle response
 authApiClient.interceptors.response.use(
   (response) => {
+    // For forgot password, return full response to include resetLink in dev mode
+    if (response.config?.url?.includes("/auth/forgot-password")) {
+      return response.data;
+    }
+    // For other endpoints, return data or data.data
     return response.data.data || response.data;
   },
   (error) => {
@@ -94,7 +99,9 @@ const authApi = {
 
   // Forgot password
   forgotPassword: async (email) => {
-    return await authApiClient.post("/auth/forgot-password", { email });
+    const response = await authApiClient.post("/auth/forgot-password", { email });
+    // Return full response including devMode and resetLink if available
+    return response;
   },
 
   // Reset password

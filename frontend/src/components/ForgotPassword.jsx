@@ -38,6 +38,11 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
       const result = await forgotPassword(email);
       if (result.success) {
         setSuccess(true);
+        // In development, log reset link if available
+        if (result.resetLink && process.env.NODE_ENV === "development") {
+          console.log("🔗 Password Reset Link:", result.resetLink);
+          console.log("💡 Copy this link to test password reset");
+        }
       } else {
         setError(result.error || "Failed to send reset email");
       }
@@ -67,6 +72,10 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
             <p className="success-text">
               Please check your email inbox and follow the instructions to reset
               your password.
+            </p>
+            <p className="success-text" style={{ fontSize: "0.9em", color: "#666", marginTop: "10px" }}>
+              <strong>Note:</strong> If you don't see the email, check your spam folder.
+              In development mode, check the backend console for the reset link.
             </p>
             <button
               type="button"
